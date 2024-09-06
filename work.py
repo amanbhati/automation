@@ -11,9 +11,9 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import NoAlertPresentException, TimeoutException
 
 import mss
-import mss.tools
 import cv2
 import numpy as np
+import threading
 
 # Video recording parameters
 VIDEO_FILENAME = 'output.mp4'
@@ -22,36 +22,44 @@ RECORD_DURATION = 60  # Duration to record in seconds
 def start_video_recording(filename=VIDEO_FILENAME, duration=RECORD_DURATION):
     global recording_started
     recording_started = time.time()
-    
-    # Start recording with mss
+
+    # Define the screen resolution
+    screen_size = (1920, 1080)  # Adjust this to your screen resolution
+    fourcc = cv2.VideoWriter_fourcc(*'mp4v')  # Define the codec
     global video_writer
-    screen_size = (1920, 1080)  # Update with your screen resolution if necessary
-    video_writer = cv2.VideoWriter(filename, cv2.VideoWriter_fourcc(*'mp4v'), 25, screen_size)
-    
+    video_writer = cv2.VideoWriter(filename, fourcc, 25.0, screen_size)
+
     def record_screen():
         with mss.mss() as sct:
             monitor = sct.monitors[1]  # Use the primary monitor
             while True:
+                # Capture the screen
                 img = sct.grab(monitor)
                 frame = np.array(img)
-                frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                video_writer.write(frame)
-                
-                # Stop recording after a duration
+
+                # Convert to BGR (OpenCV uses BGR format)
+                frame = cv2.cvtColor(frame, cv2.COLOR_BGRA2BGR)
+
+                # Resize the frame to match the screen size
+                resized_frame = cv2.resize(frame, screen_size)
+
+                # Write the frame to the video file
+                video_writer.write(resized_frame)
+
+                # Stop recording after a set duration
                 if time.time() - recording_started > duration:
                     break
 
         video_writer.release()
 
-    # Start the recording in a separate thread
-    import threading
+    # Start recording in a separate thread
     recording_thread = threading.Thread(target=record_screen)
     recording_thread.start()
 
 def stop_video_recording():
-    # Stop video recording by closing the video writer
+    # Release video writer
     global video_writer
-    if video_writer:
+    if video_writer is not None:
         video_writer.release()
 
 def run_test():
@@ -124,5 +132,3 @@ if __name__ == "__main__":
     start_video_recording()
     run_test()
     stop_video_recording()
-
-
